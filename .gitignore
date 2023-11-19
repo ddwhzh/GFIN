@@ -1,0 +1,34 @@
+# Build and Release Folders
+bin-debug/
+bin-release/
+[Oo]bj/
+[Bb]in/
+
+# Other files and folders
+__pycache__/
+logs/*
+checkpoints/*
+experiments/hico/train/logs
+experiments/vcoco/train/logs
+experiments/hico/pretrain/logs
+experiments/vcoco/pretrain/logs
+detr/experiments/
+outputs_img/*
+vcoco/mscoco2014/*
+hicodet/hico_20160224_det/*
+
+# Executables
+*.swf
+*.air
+*.ipa
+*.apk
+core.*
+# Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
+# should NOT be excluded as they contain compiler settings and other important
+# information for Eclipse / Flash Builder.
+
+experiments/hico/train/logs/train_exp.txt
+experiments/hico/train/logs/pid/save_pid.txt
+__pycache__/interaction_head.cpython-38.pyc
+last_video.mp4
+assets/test.mp4

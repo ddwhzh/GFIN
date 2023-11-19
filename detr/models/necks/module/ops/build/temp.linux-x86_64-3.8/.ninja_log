@@ -1,0 +1,4 @@
+# ninja log v5
+3	3725	1637838289270501615	/WHZH/codes/HOI/CDN/models/necks/module/ops/build/temp.linux-x86_64-3.8/WHZH/codes/HOI/CDN/models/necks/module/ops/src/cpu/ms_deform_attn_cpu.o	df4047f8152ad27b
+4	12822	1637838298360501839	/WHZH/codes/HOI/CDN/models/necks/module/ops/build/temp.linux-x86_64-3.8/WHZH/codes/HOI/CDN/models/necks/module/ops/src/cuda/ms_deform_attn_cuda.o	3e74fe44ac2573e5
+2	20469	1637838305987502027	/WHZH/codes/HOI/CDN/models/necks/module/ops/build/temp.linux-x86_64-3.8/WHZH/codes/HOI/CDN/models/necks/module/ops/src/vision.o	e61c8af6e15185b2

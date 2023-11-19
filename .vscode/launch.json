@@ -1,0 +1,335 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "vcoco check_gpu.py",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/experiments/vcoco/train/check_gpus.py",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+        {
+            "name": "hico check_gpu.py",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/experiments/hico/train/check_gpus.py",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+        {
+            "name": "pre-vcoco check_gpu.py",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/experiments/vcoco/pretrain/check_gpus.py",
+            "console": "integratedTerminal",
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+        {
+            "name": "==============",
+            "type": "python",
+            "request": "launch",
+            "program": "",
+            "console": "integratedTerminal",
+        },
+        {
+            "name": "vcoco inference.py",
+            "type": "python",
+            "request": "launch",
+            //"program": "D:\\idea_workplace\\upt\\inference.py",
+            "program": "/root/whzh/codes/HOI/new_project/upt/upt_inference.py",
+            "args": [
+                "--backbone=resnet101",
+                "--dataset=vcoco",
+                "--data-root=vcoco",
+                "--partitions","trainval","test",
+                "--resume=logs/vcoco/upt_r101/ckpt_20.pt",
+                //"--resume=logs/vcoco/debug/ckpt_10.pt",
+                //"--resume=D:\\vcoco_ckpt_20.pt",
+
+                // "--video",
+                //"--image-path=hicodet/hico_20160224_det/images/test2015/HICO_test2015_00008987.jpg",
+                // "--index_start=0",
+                // "--index_list=100",
+                "--index=101",
+                
+                //"--action-score-thresh=0.01",
+
+                //"--pnms",                
+                // "--device=cpu"
+
+                // "--cascade_layer=5",
+                // "--dec-layers=6",
+                // "--no_nms",
+                //"--action=0",
+                "--min-instances=2",
+                "--max-instances=3",
+                "--device=cpu",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+            "console": "integratedTerminal"
+        },
+
+        {
+            "name": "hico inference.py",
+            "type": "python",
+            "request": "launch",
+            //"program": "D:\\idea_workplace\\upt\\inference.py",
+            "program": "/root/whzh/codes/HOI/new_project/upt/inference.py",
+            "args": [
+                "--backbone=resnet50",
+                //"--resume=D:\\ckpt_20.pt",
+                "--resume=logs/hicodet/gfin_r50_new/ckpt_20.pt",
+                
+                // "--video",
+                // "--video_dir=assets/test.mp4",
+
+                // "--image-path=hicodet/hico_20160224_det/images/test2015/HICO_test2015_00008987.jpg",
+                //"--image-path=hicodet/hico_20160224_det/images/test2015/HICO_test2015_00008815.jpg", 
+                "--index_start=100",
+                "--index_list=200",
+                // "--index=7",
+                
+                "--action-score-thresh=0.2",
+                //"--pnms",                
+                // "--device=cpu"
+
+                // "--cascade_layer=5",
+                // "--dec-layers=6",
+                //"--no_nms",
+                //"--action=36",
+                "--min-instances=0",
+                "--max-instances=2",
+                // "--compute_para",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "==============",
+            "type": "python",
+            "request": "launch",
+            "program": "",
+            "console": "integratedTerminal",
+        },
+        {
+            "name": "vcoco pre_train",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/vcoco/detections/main_detr.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--world_size=4",
+                "--batch_size=8",
+                "--lr=2e-4",
+                "--lr_backbone=2e-5",
+                "--master_addr=127.0.0.1",
+                "--master_port=1128",
+                "--backbone=resnet50",
+                "--epochs=300",
+                "--lr_drop=200",
+                // "--pretrained=checkpoints/detr/vcoco/detr-r50-vcoco.pth",
+                "--output_dir=logs/vcoco/pre_baseline/",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+        {
+            "name": "vcoco train",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--dataset=vcoco",
+                "--world-size=4",
+                "--batch-size=8",
+                "--lr-head=2e-4",
+                "--master_addr=127.0.0.1",
+                "--master_port=1190",
+                "--backbone=resnet50",
+                "--data-root=vcoco",
+                "--partitions","trainval","test",
+                "--pretrained=checkpoints/detr/vcoco/detr-r50-vcoco.pth",
+                "--output-dir=logs/vcoco/upt_ori",
+                // "--aux_attn_loss"
+                //"--resume=logs/vcoco/baseline/ckpt_20.pt"
+
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+        {
+            "name": "vcoco eval",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--dataset=vcoco",
+                "--world-size=4",
+                "--master_addr=127.0.0.1",
+                "--master_port=1127",
+                "--batch-size=1",
+                "--backbone=resnet50",
+                "--data-root=vcoco",
+                "--partitions", "trainval", "test",
+                "--resume=logs/vcoco/upt_r50/ckpt_20.pt",
+                // "--resume=logs/vcoco/gfin_r101_1/ckpt_20.pt",
+                // "--resume=checkpoints/upt/vcoco/upt-r50-vcoco.pt",
+                "--output-dir=logs/vcoco/debug",
+                "--eval",
+                "--mode=scenario_1", 
+                "--ignore_point"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+        {
+            "name": "vcoco offical test",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/vcoco_test.py",
+            "console": "integratedTerminal",
+            "args": [   
+                "--det_file=logs/vcoco/upt_r50/cache.pkl",
+                "--mode=scenario_2", 
+                // "--ignore_point"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+        {
+            "name": "vcoco train cpu",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--dataset=vcoco",
+                "--world-size=1",
+                "--master_addr=127.0.0.1",
+                "--master_port=1128",
+                "--backbone=resnet50",
+                "--data-root=vcoco",
+                "--batch-size=2",
+                "--partitions","trainval","test",
+                "--pretrained=/root/whzh/codes/HOI/new_project/upt/checkpoints/detr/vcoco/detr-r50-vcoco.pth",
+                "--output-dir=logs/vcoco/debug",
+                "--device=cpu",
+                "--print-interval=1",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+        {
+            "name": "==============",
+            "type": "python",
+            "request": "launch",
+            "program": "",
+            "console": "integratedTerminal",
+        },
+        {
+            "name": "hico train",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--world-size=4",
+                "--batch-size=8",
+                "--lr-head=2e-4",
+                "--master_addr=127.0.0.1",
+                "--master_port=1999",
+                "--backbone=resnet101",
+                "--dataset=hicodet",
+                "--data-root=hicodet/",
+                "--pretrained=checkpoints/detr/hico_det/detr-r101-hicodet.pth",
+                "--output-dir=logs/hicodet/ican",
+                "--epochs=20",
+                //"--aux_attn_loss"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+        {
+            "name": "hico eval",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--dataset=hicodet",
+                "--world-size=4",
+                "--master_addr=127.0.0.1",
+                "--master_port=1188",
+                "--backbone=resnet50",
+                "--resume=logs/hicodet/best_44/ckpt_20.pt",
+                // "--resume=/WHZH/models/upt/hico/upt-r50-hicodet.pt",
+                // "--resume=logs/hicodet/ican/ckpt_01.pt",
+                "--output-dir=logs/hicodet/debug",
+                "--eval",
+                // "--ko_mode"
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0,1,2,3",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+        {
+            "name": "hico train cpu",
+            "type": "python",
+            "request": "launch",
+            "program": "/root/whzh/codes/HOI/new_project/upt/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--world-size=1",
+                "--batch-size=2",
+                "--lr-head=2e-4",
+                "--master_addr=127.0.0.1",
+                "--master_port=1123",
+                "--backbone=resnet50",
+                "--dataset=hicodet",
+                "--data-root=hicodet/",
+                "--pretrained=/root/whzh/codes/HOI/new_project/upt/checkpoints/detr/hico_det/detr-r50-hicodet.pth",
+                "--output-dir=logs/hicodet/debug",
+                "--device=cpu",
+                "--print-interval=1",
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0",
+                "OMP_NUM_THREADS": "1"
+            },
+        },
+    ]
+}
