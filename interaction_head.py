@@ -89,7 +89,10 @@ class InteractionHead(Base_InteractionHead):
             hidden_size = hidden_state_size,
             representation_size = representation_size,
             num_layers = args.menc_inter_layer,
-            num_heads=args.nheads, return_weights = True)
+            num_heads=args.nheads, return_weights = True,
+            directional=getattr(args, 'directional_hof', False),
+            spatial_refine=getattr(args, 'spatial_refine', False),
+        )
         
         self.HOI_layer  = self.build_decode(d_model = hidden_state_size * 2, nhead = args.nheads, num_decoder_layers = args.dec_inter_layers, 
                                             dim_feedforward = args.dim_feedforward, dropout = args.dropout, activation = "relu", normalize_before = False, 
@@ -97,7 +100,25 @@ class InteractionHead(Base_InteractionHead):
 
         self.detr_res_linear = nn.Linear(hidden_state_size, hidden_state_size)
         self.detr_memory_linear = nn.Linear(hidden_state_size, hidden_state_size)
-          
+
+        # Direction B: learnable per-class prior calibration
+        self.learnable_prior = getattr(args, 'learnable_prior', False)
+        if self.learnable_prior:
+            self.prior_calibration = nn.Parameter(torch.ones(self.num_classes))
+
+        # Improvement 1b: CLIP visual feature fusion
+        self.use_clip_visual = getattr(args, 'clip_visual', False)
+        if self.use_clip_visual:
+            from gfin_module.clip_utils import CLIPVisualEncoder
+            self.clip_visual_encoder = CLIPVisualEncoder(
+                hidden_dim=hidden_state_size,
+                clip_model_name=getattr(args, 'clip_model', 'ViT-B-32'),
+            )
+            self.clip_fusion = nn.Linear(
+                hidden_state_size * 2 + hidden_state_size,
+                hidden_state_size * 2,
+            )
+
 
     
     def forward(self, images, resnet_features: OrderedDict, srcs, 
@@ -106,7 +127,10 @@ class InteractionHead(Base_InteractionHead):
         device = self.device
         ######################################   1.GCE   #####################################
         hof_memory = None
-        hof_memory = self.GEC_forward(resnet_features, srcs, detr_memory, masks, poses)
+        hof_memory = self.GEC_forward(
+            resnet_features, srcs, detr_memory, masks, poses,
+            images=images if self.use_clip_visual else None,
+        )
         ######################################   GCE   #####################################               
         boxes_h_collated = []
         boxes_o_collated = []
@@ -184,38 +208,42 @@ class InteractionHead(Base_InteractionHead):
             attn_maps_collated.append((unary_attn,  HOI_attn))  
  
         HOI_tokens_collated = torch.cat(HOI_tokens_collated, dim=1)
+        hoi_features = HOI_tokens_collated[-1]    # (total_pairs, repr_dim)
         if not self.training:
             HOI_tokens_collated = HOI_tokens_collated[-1:] 
         logits = self.box_pair_predictor(HOI_tokens_collated) 
         
         return logits, prior_collated, prior_score,\
                 boxes_h_collated, boxes_o_collated, \
-                object_class_collated, attn_maps_collated
+                object_class_collated, attn_maps_collated, hoi_features
 
     def compute_prior_scores(self, x_keep: Tensor, y_keep: Tensor, scores: Tensor, object_class: Tensor) -> Tensor:
         prior_h = torch.zeros(len(x_keep), self.num_classes, device=self.device)
         prior_o = torch.zeros_like(prior_h)
-        # Raise the power of object detection scores during inference
-        p = 1.0 if self.training else 2.8
-        s_h = scores[x_keep].pow(p)
-        s_o = scores[y_keep].pow(p)
-        # Map object class index to target class index(过滤矩阵滤掉不正确的pair)
-        # Object class index to target class index is a one-to-many mapping
-        #   Vcoco会自动不过滤没有宾语的动作
+
         target_cls_idx = [self.object_class_to_target_class[obj.item()] if x_keep[i] != y_keep[i]
                           else range(self.num_classes) for i, obj in enumerate(object_class[y_keep])]
-        # Duplicate box pair indices for each target class
         pair_idx = [i for i, tar in enumerate(target_cls_idx) for _ in tar]
-        # Flatten mapped target indices
         flat_target_idx = [t for tar in target_cls_idx for t in tar]
 
-        prior_h[pair_idx, flat_target_idx] = s_h[pair_idx]#pairN, 24
-        prior_o[pair_idx, flat_target_idx] = s_o[pair_idx]#pairN, 24
+        if self.learnable_prior:
+            # Direction B: per-class calibration exponent
+            p = self.prior_calibration.clamp(min=0.1)                # (K,)
+            s_h = scores[x_keep].unsqueeze(-1).pow(p.unsqueeze(0))   # (M, K)
+            s_o = scores[y_keep].unsqueeze(-1).pow(p.unsqueeze(0))
+            prior_h[pair_idx, flat_target_idx] = s_h[pair_idx, flat_target_idx]
+            prior_o[pair_idx, flat_target_idx] = s_o[pair_idx, flat_target_idx]
+        else:
+            p = 1.0 if self.training else 2.8
+            s_h = scores[x_keep].pow(p)
+            s_o = scores[y_keep].pow(p)
+            prior_h[pair_idx, flat_target_idx] = s_h[pair_idx]
+            prior_o[pair_idx, flat_target_idx] = s_o[pair_idx]
 
-        return torch.stack([prior_h, prior_o])#2, pairN, 24
+        return torch.stack([prior_h, prior_o])
     
 
-    def GEC_forward(self, resnet_features, srcs, detr_memory, masks, poses):
+    def GEC_forward(self, resnet_features, srcs, detr_memory, masks, poses, images=None):
         global_features = [self.input_proj(resnet_features[-1])]  
         # _, global_features, _, _ = self.backbone_forward(images)
         w, h = detr_memory.shape[-2], detr_memory.shape[-1]    
@@ -227,5 +255,16 @@ class InteractionHead(Base_InteractionHead):
             self.detr_memory_linear(detr_memory.permute(0,2,3,1)).permute(0,3,1,2) 
             
         detr_memory = detr_memory.flatten(-2).permute(2,0,1)
-        hof_memory = torch.cat([detr_memory, hoi_memory], dim=-1)     
+        hof_memory = torch.cat([detr_memory, hoi_memory], dim=-1)
+
+        # Improvement 1b: fuse CLIP visual features
+        if self.use_clip_visual and images is not None:
+            clip_feat = self.clip_visual_encoder(images)          # (B, hidden_dim)
+            clip_feat = clip_feat.unsqueeze(0).expand(
+                hof_memory.shape[0], -1, -1
+            )                                                     # (HW, B, hidden_dim)
+            hof_memory = self.clip_fusion(
+                torch.cat([hof_memory, clip_feat], dim=-1)
+            )                                                     # (HW, B, hidden_dim*2)
+
         return hof_memory

@@ -80,6 +80,11 @@ graph TD
     C --> D[残差连接: + DETR 编码器特征]
     D --> E[拼接 DETR memory 投影]
     E --> F[全局记忆: HW x B x 512]
+    G["CLIP 视觉编码器 (可选)"] --> H[投影: clip_dim -> 256]
+    H --> I[扩展到 HW tokens]
+    F --> J["融合: concat + Linear (可选)"]
+    I --> J
+    J --> K[最终全局记忆: HW x B x 512]
 :::
 
 | 参数 | 默认值 | 描述 |
@@ -152,6 +157,21 @@ graph TD
 - 损失在所有解码器层上平均 (辅助监督)
 - 分布式: 损失按全局正样本数归一化
 
+#### 标签分配策略 (可选切换)
+
+| 策略 | 激活参数 | 描述 |
+|-----|---------|------|
+| IoU 匹配 (默认) | 无 | 双框 IoU >= 0.5 即匹配, 一对多 |
+| 匈牙利匹配 | `--Hungarian` | 最优一对一匹配, 使用 `SetCriterion` |
+
+匈牙利匹配通过 `--set-cost-object`, `--set-cost-verb`, `--set-cost-bbox`, `--set-cost-giou` 控制代价权重.
+
+#### Toxic Siblings 去偏损失 (可选)
+
+**位置**: `ops.py` -> `sibling_contrastive_loss()`, 通过 `--debiasing` 开启
+
+同一人-物配对可能有多个有效交互标签 (如 "hold + ride"), 标准 focal loss 下这些标签相互竞争. 去偏损失通过 margin loss 鼓励正标签平均分数高于负标签平均分数, 缓解这一问题. 权重由 `--debias-weight` (默认 0.5) 控制.
+
 ### 3.7 后处理
 
 **位置**: `gfin.py` -> `GFIN.postprocessing()`
@@ -206,8 +226,10 @@ graph TD
     gfin_mod --> interaction[interaction_head.py]
     gfin_mod --> ops[ops.py]
     gfin_mod --> detr_models[detr/models/]
+    gfin_mod --> clip_utils[gfin_module/clip_utils.py]
     interaction --> base[gfin_module/base_interaction_head.py]
     interaction --> hof[gfin_module/hof.py]
+    interaction --> clip_utils
     base --> gce[gfin_module/gce.py]
     base --> pid[gfin_module/pid.py]
     hof --> mbf[gfin_module/mbf.py]
@@ -236,6 +258,7 @@ GFIN/
 +--
 +-- gfin_module/                # GFIN 核心组件
 |   +-- activations.py           # 共享激活函数工具
+|   +-- clip_utils.py            # CLIP 文本/视觉编码工具 (v2 改进)
 |   +-- base_interaction_head.py # 基类: 编码/解码辅助方法
 |   +-- gce.py                   # 全局上下文编码器 (TransformerEncoder)
 |   +-- hof.py                   # 人-物融合模块
@@ -294,6 +317,12 @@ GFIN/
 | lr_drop | 10 | 10 | 学习率衰减轮数 |
 | alpha | 0.5 | 0.5 | Focal Loss alpha |
 | gamma | 0.2 | 0.2 | Focal Loss gamma |
+| clip_init | False | False | CLIP 文本先验初始化 (v2) |
+| clip_visual | False | False | CLIP 视觉特征融合 (v2) |
+| clip_model | ViT-B-32 | ViT-B-32 | CLIP 模型变体 (v2) |
+| debiasing | False | False | 去偏损失开关 (v2) |
+| debias_weight | 0.5 | 0.5 | 去偏损失权重 (v2) |
+| Hungarian | False | False | 匈牙利匹配开关 |
 
 ---
 
@@ -310,3 +339,101 @@ HOF 使用基于 sigmoid 的门控代替 softmax 注意力. 这允许每个物�
 
 ### 8.4 辅助解码器损失
 所有 PID 解码器层的输出都参与损失计算 (取平均), 为中间层提供梯度信号, 改善收敛.
+
+---
+
+## 9. 模型改进 (v2)
+
+### 9.1 CLIP 文本先验分类器初始化
+
+**参数**: `--clip-init`, `--clip-model ViT-B-32`
+
+使用 CLIP 文本编码器将动词/动作描述 (如 "a person riding a bicycle") 编码为特征向量, 用于初始化 `box_pair_predictor` 的权重. 这为分类器提供语义先验, 使相似动作在特征空间中更接近.
+
+**位置**: `gfin.py` -> `build_detector()`, `gfin_module/clip_utils.py`
+
+### 9.2 CLIP 视觉特征融合
+
+**参数**: `--clip-visual`, `--clip-model ViT-B-32`
+
+使用冻结的 CLIP 视觉编码器提取全局图像语义特征, 通过拼接 + 线性投影融合到 GCE 的全局记忆中. CLIP 提供与文本对齐的视觉语义, 增强模型对新交互类别的泛化能力.
+
+**位置**: `interaction_head.py` -> `GEC_forward()`, `gfin_module/clip_utils.py`
+
+### 9.3 匈牙利匹配标签分配
+
+**参数**: `--Hungarian`, `--set-cost-object`, `--set-cost-verb`, `--set-cost-bbox`, `--set-cost-giou`
+
+用匈牙利算法实现最优一对一匹配, 替代默认的 IoU 阈值多对多匹配. 匈牙利匹配综合考虑分类分数, 框回归和 GIoU, 产生更精确的标签分配.
+
+**位置**: `gfin.py` -> `compute_interaction_loss()`, `ops.py` -> `SetCriterion` / `HungarianMatcher`
+
+### 9.4 Toxic Siblings 去偏损失
+
+**参数**: `--debiasing`, `--debias-weight 0.5`
+
+针对同一人-物配对有多个有效交互标签时标签间互相竞争的问题. 通过 margin loss 鼓励正标签分数均值显著高于负标签分数均值, 减少 "Toxic Siblings" 效应.
+
+**位置**: `ops.py` -> `sibling_contrastive_loss()`, `gfin.py` -> `compute_interaction_loss()`
+
+---
+
+## 10. 原创架构改进 (v3)
+
+### 10.1 有向 HOF 注意力 (Direction A)
+
+**参数**: `--directional-hof`
+
+原始 HOF 的三个注意力分支接收完全相同的输入特征, 仅通过不同的随机初始化区分. v3 赋予每个分支结构性差异:
+
+- **Branch 1 (前向)**: `[K_source, K_target, Spatial]` -- 标准 source->target 方向
+- **Branch 2 (后向)**: `[K_target, K_source, Spatial]` -- 反向 target->source 视角
+- **Branch 3 (交互)**: `[K_source * K_target, |K_source - K_target|, Spatial]` -- 元素级交互模式
+
+三个分支不再简单平均, 而是使用学习到的 softmax 门控 (基于当前节点特征) 进行加权融合, 允许不同实例动态选择最相关的注意力模式.
+
+**位置**: `gfin_module/hof.py` -> `HOFmoduleLayer`
+
+### 10.2 可学习逐类先验校准 (Direction B)
+
+**参数**: `--learnable-prior`
+
+原始代码使用固定的检测分数指数 (训练时 p=1.0, 推理时 p=2.8) 对所有类别一视同仁. v3 将 p 替换为逐类可学习参数 `prior_calibration`, 初始化为 1.0, 通过梯度下降为每个交互类别学习最优校准值. 稀有类和常见类可能需要不同程度的分数放大.
+
+**位置**: `interaction_head.py` -> `compute_prior_scores()`
+
+### 10.3 稀有动作原型记忆库 (Direction C)
+
+**参数**: `--prototype-memory`, `--proto-weight 0.1`, `--proto-momentum 0.999`
+
+维护一个 EMA 更新的类原型向量库. 每次前向传播后, 用当前 batch 中出现的类别特征更新对应原型. 将 HOI 特征与原型的余弦相似度作为辅助分类信号, 通过 focal loss 监督. 原型提供稳定的类别表示, 对长尾分布中的稀有类尤其有益.
+
+**位置**: `gfin.py` -> `ActionPrototypeMemory`, `compute_interaction_loss()`
+
+### 10.4 空间编码迭代精炼 (Direction D)
+
+**参数**: `--spatial-refine`
+
+在每个 HOF 层中, 使用当前的外观特征通过 sigmoid 门控调制空间特征. 这允许模型在不同层关注不同的空间关系: 早期层可能关注粗粒度位置, 后期层则聚焦精细的接触区域.
+
+公式: `Spatial_refined = Spatial * sigmoid(Linear(appearance))`
+
+**位置**: `gfin_module/hof.py` -> `HOFmoduleLayer.forward()`
+
+### 10.5 动词层级分类 (Direction E)
+
+**参数**: `--hierarchical-verb`, `--hier-weight 0.3`
+
+将 117 个 (HICO-DET) 或 29 个 (V-COCO) 细粒度动词自动归类为 6 个粗粒度语义组 (contact, tool_use, positional, manipulation, observation, none). 额外的粗粒度分类头 (`coarse_predictor`) 使用与主分类器相同的 HOI 特征, 通过 focal loss 学习粗粒度预测. 粗标签从细标签自动聚合.
+
+这提供了层级正则化: 即使模型无法区分 "kick" 和 "hit", 它仍然可以正确预测 "contact" 类, 为细粒度分支提供梯度信号.
+
+**位置**: `gfin_module/verb_hierarchy.py`, `gfin.py` -> `compute_interaction_loss()`
+
+### 10.6 注意力蒸馏 (Direction F)
+
+**参数**: `--attn-distill`, `--attn-distill-weight 0.1`
+
+使用边界框 IoU 矩阵作为弱监督目标, 引导 HOF 的注意力权重. 直觉: 空间上重叠度更高的物体对更可能发生交互, 因此应获得更高的注意力权重. 通过 MSE 损失鼓励多头平均注意力图逼近 IoU 矩阵, 为注意力学习提供几何先验.
+
+**位置**: `gfin.py` -> `compute_interaction_loss()`

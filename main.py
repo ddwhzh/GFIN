@@ -105,7 +105,50 @@ def get_args_parser():
     parser.add_argument('--Hungarian', action='store_true')
     parser.add_argument('--aux_attn_loss', action='store_true')
     parser.add_argument('--num_layer', default=3, type=int)#aux_loss
-    
+
+    # CLIP improvements
+    parser.add_argument('--clip-init', action='store_true',
+                        help='Initialize classifier with CLIP text prior')
+    parser.add_argument('--clip-model', default='ViT-B-32', type=str,
+                        help='CLIP model variant for text/visual encoding')
+    parser.add_argument('--clip-visual', action='store_true',
+                        help='Fuse CLIP visual features into GCE')
+    # Debiasing
+    parser.add_argument('--debiasing', action='store_true',
+                        help='Enable toxic siblings debiasing loss')
+    parser.add_argument('--debias-weight', default=0.5, type=float,
+                        help='Weight for debiasing loss term')
+    # Hungarian matching cost weights
+    parser.add_argument('--set-cost-object', default=1, type=float)
+    parser.add_argument('--set-cost-verb', default=1, type=float)
+
+    # Direction A: Directional HOF
+    parser.add_argument('--directional-hof', action='store_true',
+                        help='Enable asymmetric directional attention in HOF')
+    # Direction B: Learnable per-class prior calibration
+    parser.add_argument('--learnable-prior', action='store_true',
+                        help='Learn per-class detection score exponent')
+    # Direction C: Rare action prototype memory
+    parser.add_argument('--prototype-memory', action='store_true',
+                        help='Enable EMA prototype memory for rare actions')
+    parser.add_argument('--proto-weight', default=0.1, type=float,
+                        help='Weight for prototype auxiliary loss')
+    parser.add_argument('--proto-momentum', default=0.999, type=float,
+                        help='EMA momentum for prototype updates')
+    # Direction D: Spatial encoding iterative refinement
+    parser.add_argument('--spatial-refine', action='store_true',
+                        help='Enable per-layer spatial feature gating in HOF')
+    # Direction E: Hierarchical verb taxonomy
+    parser.add_argument('--hierarchical-verb', action='store_true',
+                        help='Enable coarse verb taxonomy auxiliary loss')
+    parser.add_argument('--hier-weight', default=0.3, type=float,
+                        help='Weight for hierarchical verb loss')
+    # Direction F: Attention distillation
+    parser.add_argument('--attn-distill', action='store_true',
+                        help='Enable IoU-based attention distillation loss')
+    parser.add_argument('--attn-distill-weight', default=0.1, type=float,
+                        help='Weight for attention distillation loss')
+
     #   eval
     parser.add_argument('--pnms', action='store_true')
     parser.add_argument('--inference', action='store_true')
@@ -190,10 +233,14 @@ def main(rank, args):
     if args.dataset == 'hicodet':
         object_to_target = train_loader.dataset.dataset.object_to_verb
         args.num_classes = 117
+        args.verb_names = train_loader.dataset.dataset.verbs
+        args.object_names = train_loader.dataset.dataset.objects
     elif args.dataset == 'vcoco':
         object_to_target = list(train_loader.dataset.dataset.object_to_action.values())
         # args.num_classes = 24
         args.num_classes = 29
+        args.verb_names = train_loader.dataset.dataset.actions
+        args.object_names = train_loader.dataset.dataset.objects
         
     gfin = build_detector(args, object_to_target)
     
@@ -294,7 +341,7 @@ def main(rank, args):
         p.requires_grad = False
     param_dicts = [{
         "params": [p for n, p in gfin.named_parameters()
-        if "interaction_head" in n and p.requires_grad]
+        if "detector" not in n and p.requires_grad]
     }]
     optim = torch.optim.AdamW(
         param_dicts, lr=args.lr_head,
@@ -358,6 +405,8 @@ def sanity_check(args):
     dataset = DataFactory(name='hicodet', partition=args.partitions[0], data_root=args.data_root)
     args.human_idx = 0; args.num_classes = 117
     object_to_target = dataset.dataset.object_to_verb
+    args.verb_names = dataset.dataset.verbs
+    args.object_names = dataset.dataset.objects
     gfin = build_detector(args, object_to_target)
     if args.eval:
         gfin.eval()

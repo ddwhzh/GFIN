@@ -757,6 +757,39 @@ def  My_focal_loss(
         raise ValueError("Unsupported reduction method {}".format(reduction))
     return loss
 
+def sibling_contrastive_loss(logits, labels, margin=0.3):
+    """Toxic siblings debiasing loss.
+
+    For each prediction, encourages the average score of positive labels
+    to be higher than the average score of negative labels by at least
+    ``margin``. This reduces competition among valid co-occurring
+    interaction labels for the same human-object pair.
+
+    Args:
+        logits: (N, K) raw logits for K interaction classes
+        labels: (N, K) binary ground-truth labels
+        margin: float, minimum desired gap between pos/neg mean scores
+
+    Returns:
+        Scalar loss tensor
+    """
+    pos_mask = labels.eq(1).float()
+    neg_mask = labels.eq(0).float()
+    scores = torch.sigmoid(logits)
+
+    pos_count = pos_mask.sum(dim=-1, keepdim=True).clamp(min=1)
+    neg_count = neg_mask.sum(dim=-1, keepdim=True).clamp(min=1)
+    pos_mean = (scores * pos_mask).sum(dim=-1, keepdim=True) / pos_count
+    neg_mean = (scores * neg_mask).sum(dim=-1, keepdim=True) / neg_count
+
+    has_pos = pos_mask.sum(dim=-1) > 0
+    if has_pos.sum() == 0:
+        return logits.sum() * 0.0
+
+    loss = F.relu(neg_mean - pos_mean + margin)
+    return loss[has_pos].mean()
+
+
 def norm_tensor(tensor):
     norm = torch.norm(tensor, p = 'fro', dim = -1).unsqueeze(dim = -1).expand_as(tensor)
     return tensor/norm
