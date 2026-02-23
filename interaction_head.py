@@ -12,12 +12,11 @@ import torch.nn.functional as F
 import numpy as np
 
 from torch import nn, Tensor
-from typing import List
+from typing import List, Optional, Tuple
 from collections import OrderedDict
 
 import pocket
 from ops import compute_spatial_encodings
-from add_on.net import *
 from gfin_module.base_interaction_head import Base_InteractionHead
 from gfin_module.hof import HOFmodule
 

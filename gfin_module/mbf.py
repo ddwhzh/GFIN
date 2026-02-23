@@ -1,10 +1,9 @@
-import copy
 from typing import Optional, List
 
-import math
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
+
 
 class MultiBranchFusion(nn.Module):
     """
@@ -57,13 +56,5 @@ class MultiBranchFusion(nn.Module):
         out = self.activation(out)
         return out
 
-def _get_activation_fn(activation):
-    """Return an activation function given a string"""
-    if activation == "relu":
-        return F.relu
-    if activation == "gelu":
-        return F.gelu
-    if activation == "glu":
-        return F.glu
-    raise RuntimeError(F"activation should be relu/gelu, not {activation}.")
+from gfin_module.activations import get_activation_fn as _get_activation_fn
 

@@ -1,12 +1,10 @@
 import copy
 from typing import Optional, List
 
-import math
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
-from  gfin_module.mbf import MultiBranchFusion
-# from row_column_decoupled_attention import MultiheadRCDA
+from gfin_module.mbf import MultiBranchFusion
 
 class TransformerDecoder(nn.Module):
     def __init__(self, decoder_layer, num_layers, norm=None, return_intermediate=False):
@@ -186,16 +184,9 @@ class DecoderEmbeddings(nn.Module):
         return embeddings
 
 
+from gfin_module.activations import get_activation_fn as _get_activation_fn
+
+
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
-    
-def _get_activation_fn(activation):
-    """Return an activation function given a string"""
-    if activation == "relu":
-        return F.relu
-    if activation == "gelu":
-        return F.gelu
-    if activation == "glu":
-        return F.glu
-    raise RuntimeError(F"activation should be relu/gelu, not {activation}.")
 

@@ -24,7 +24,6 @@ from utils import custom_collate, CustomisedDLE, DataFactory
 import utils
 
 import time
-import argparse
 import datetime
 
 from torch.utils.tensorboard import SummaryWriter
@@ -118,8 +117,12 @@ def get_args_parser():
 
     parser.add_argument('--world_size', default=1, type=int, help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
-    parser.add_argument('--master_addr', default="127.0.0.1", type=str, help='number of distributed processes')
+    parser.add_argument('--master_addr', default="127.0.0.1", type=str, help='master address for distributed training')
     parser.add_argument('--master_port', default="1333", type=str)
+
+    parser.add_argument('--vcoco-vsrl-annot', default=os.environ.get('VCOCO_VSRL_ANNOT', 'vcoco/v-coco/data/vcoco/vcoco_test.json'), type=str)
+    parser.add_argument('--vcoco-coco-annot', default=os.environ.get('VCOCO_COCO_ANNOT', 'vcoco/v-coco/data/instances_vcoco_all_2014.json'), type=str)
+    parser.add_argument('--vcoco-split-file', default=os.environ.get('VCOCO_SPLIT_FILE', 'vcoco/v-coco/data/splits/vcoco_test.ids'), type=str)
 
     return parser
 
@@ -254,9 +257,9 @@ def main(rank, args):
             torch.distributed.barrier()
             torch.cuda.empty_cache()
             if rank==0:
-                vcocoeval = VCOCOeval(vsrl_annot_file='/WHZH/dataset/v-coco/data/vcoco/vcoco_test.json', 
-                                      coco_annot_file='/WHZH/dataset/v-coco/data/instances_vcoco_all_2014.json', 
-                                      split_file='/WHZH/dataset/v-coco/data/splits/vcoco_test.ids')
+                vcocoeval = VCOCOeval(vsrl_annot_file=args.vcoco_vsrl_annot,
+                                      coco_annot_file=args.vcoco_coco_annot,
+                                      split_file=args.vcoco_split_file)
                 vcocoeval._do_eval(args.output_dir+"/cache.pkl", mode=args.mode, 
                                    ovr_thresh=args.ovr_thresh, ignore_point = args.ignore_point)
         elif args.dataset == 'hicodet':
@@ -319,14 +322,13 @@ def main(rank, args):
         torch.cuda.empty_cache()
         if rank==0:
             vcocoeval = VCOCOeval(
-                                vsrl_annot_file='/WHZH/dataset/v-coco/data/vcoco/vcoco_test.json', 
-                                coco_annot_file='/WHZH/dataset/v-coco/data/instances_vcoco_all_2014.json', 
-                                split_file='/WHZH/dataset/v-coco/data/splits/vcoco_test.ids', )
+                                vsrl_annot_file=args.vcoco_vsrl_annot,
+                                coco_annot_file=args.vcoco_coco_annot,
+                                split_file=args.vcoco_split_file)
             vcocoeval._do_eval(args.output_dir+"/cache.pkl", mode=args.mode, 
                                ovr_thresh=args.ovr_thresh, ignore_point = args.ignore_point)
     elif args.dataset == 'hicodet':
         ap, recall = engine.test_hico(test_loader, args.ko_mode)
-        # Fetch indices for rare and non-rare classes
         num_anno = torch.as_tensor(trainset.dataset.anno_interaction)
         rare = torch.nonzero(num_anno < 10).squeeze(1)
         non_rare = torch.nonzero(num_anno >= 10).squeeze(1)

@@ -2,22 +2,16 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from torch import nn
-from collections import OrderedDict
-import copy
-
-import pocket
-import torchvision
-from torch.jit.annotations import Optional, List, Dict, Tuple
+from torch import nn, Tensor
+from typing import Optional, List, Dict, Tuple
 
 from ops import norm_tensor
-from add_on.net import *
 
 from gfin_module.gce import TransformerEncoder, TransformerEncoderLayer
 from gfin_module.pid import TransformerDecoder, TransformerDecoderLayer
-from gfin_module.position_encoding import  build_1d_position_encoding
+from gfin_module.position_encoding import build_1d_position_encoding
 from gfin_module.hof import HOFmodule
-from detr.util.misc import (NestedTensor, nested_tensor_from_tensor_list)
+from detr.util.misc import NestedTensor, nested_tensor_from_tensor_list
 
 
 class Base_InteractionHead(nn.Module):

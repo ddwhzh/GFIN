@@ -8,7 +8,6 @@ Australian Centre for Robotic Vision
 """
 
 import os
-from sklearn.metrics import SCORERS
 import torch
 import torch.distributed as dist
 
@@ -19,11 +18,11 @@ import numpy as np
 from typing import Optional, List
 from torchvision.ops.boxes import batched_nms, box_iou
 
-from ops import *
+from ops import binary_focal_loss
 from interaction_head import InteractionHead
 
 import sys
-sys.path.append('detr')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'detr'))
 from detr.models import build_model
 from detr.util import box_ops
 

@@ -1,18 +1,11 @@
-
-import copy
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
-from torch import nn, Tensor
-from typing import List, Optional, Tuple
-from collections import OrderedDict
-import copy
-from add_on.attention import *
-import pocket
 
-from  gfin_module.mbf import MultiBranchFusion
+import pocket
+from gfin_module.mbf import MultiBranchFusion
 class HOFmodule(nn.Module):
     def __init__(self,
         hidden_size: int = 256, representation_size: int = 512,
@@ -100,8 +93,8 @@ class HOFmoduleLayer(nn.Module):
                               torch.arange(n, device=device))
         attn_features = torch.cat([Kappe[:, i], Kappe[:, j], Qspat], dim=-1) #   ([8], N, N, 3*64)
 
-        weights1 = [F.sigmoid(f(m)) for f, m in zip(self.attn1, attn_features)]
-        weights2 = [F.sigmoid(f(m)) for f, m in zip(self.attn2, attn_features)]
+        weights1 = [torch.sigmoid(f(m)) for f, m in zip(self.attn1, attn_features)]
+        weights2 = [torch.sigmoid(f(m)) for f, m in zip(self.attn2, attn_features)]
 
         Vappe = self.activation(self.unary2(appearance))    
         Vappe = self.reshape(Vappe)
@@ -150,14 +143,4 @@ class HOFmoduleLayer(nn.Module):
 
 
     
-def _get_activation_fn(activation):
-    """Return an activation function given a string"""
-    if activation == "relu":
-        return F.relu
-    if activation == "gelu":
-        return F.gelu
-    if activation == "glu":
-        return F.glu
-    # if activation=="prelu":
-    #     return F.prelu
-    raise RuntimeError(F"activation should be relu/gelu, not {activation}.")
+from gfin_module.activations import get_activation_fn as _get_activation_fn
