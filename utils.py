@@ -8,23 +8,19 @@ Australian Centre for Robotic Vision
 """
 
 import os
-from regex import S
-import torch
+import sys
+import time
+import json
 import pickle
+import itertools
+
+import torch
+import torch.distributed as dist
 import numpy as np
 import scipy.io as sio
-import json
-
-import time
-import torch
-import multiprocessing
 
 from torch import Tensor
-from collections import deque
-from typing import Optional, Iterable, Any, List, Union, Tuple
-
-
-
+from typing import Optional, List
 from tqdm import tqdm
 from collections import defaultdict
 from torch.utils.data import Dataset
@@ -37,14 +33,10 @@ from pocket.core import DistributedLearningEngine
 from pocket.utils import DetectionAPMeter, BoxPairAssociation
 
 from vcoco.vsrl_eval import VCOCOeval
-import time
-import itertools
-import torch.distributed as dist
 
-import sys
-sys.path.append('detr')
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'detr'))
 import detr.datasets.transforms as T
-from add_on.pnms import *
+from add_on.pnms import triplet_nms_filter
 def custom_collate(batch):
     images = []
     targets = []
@@ -118,7 +110,7 @@ class DataFactory(Dataset):
 
     def __getitem__(self, i):
         image, target = self.dataset[i]
-        if target!=None:
+        if target is not None:
             if self.name == 'hicodet':
                 target['labels'] = target['verb']
                 # Convert ground truth boxes to zero-based index and the
@@ -287,14 +279,13 @@ class CustomisedDLE(DistributedLearningEngine):
         if self.dataset == 'vcoco':
             self.cache_vcoco(self._test_loader, self._cache_dir)
             if self._rank == 0:
+                vcoco_vsrl = os.environ.get('VCOCO_VSRL_ANNOT', 'vcoco/v-coco/data/vcoco/vcoco_test.json')
+                vcoco_coco = os.environ.get('VCOCO_COCO_ANNOT', 'vcoco/v-coco/data/instances_vcoco_all_2014.json')
+                vcoco_split = os.environ.get('VCOCO_SPLIT_FILE', 'vcoco/v-coco/data/splits/vcoco_test.ids')
                 vcocoeval = VCOCOeval(
-                                    vsrl_annot_file='/WHZH/dataset/v-coco/data/vcoco/vcoco_test.json', 
-                                    coco_annot_file='/WHZH/dataset/v-coco/data/instances_vcoco_all_2014.json', 
-                                    split_file='/WHZH/dataset/v-coco/data/splits/vcoco_test.ids',
-                                    #vsrl_annot_file='/WHZH/dataset/v-coco/data/vcoco/vcoco_trainval.json', 
-                                    #coco_annot_file='/WHZH/dataset/v-coco/data/instances_vcoco_all_2014.json', 
-                                    #split_file='/WHZH/dataset/v-coco/data/splits/vcoco_trainval.ids',
-                                    )
+                                    vsrl_annot_file=vcoco_vsrl,
+                                    coco_annot_file=vcoco_coco,
+                                    split_file=vcoco_split)
                 vcocoeval._do_eval(self._cache_dir+"/cache.pkl", ovr_thresh=0.5)
             torch.distributed.barrier()
         elif self.dataset == 'hicodet':
@@ -688,8 +679,7 @@ def all_gather(data):
     device = dist.get_rank() 
     
     buffer = pickle.dumps(data)
-    storage = torch.ByteStorage.from_buffer(buffer)
-    tensor = torch.ByteTensor(storage).to(device)
+    tensor = torch.frombuffer(bytearray(buffer), dtype=torch.uint8).to(device)
 
     local_size = torch.tensor([tensor.numel()], device=device)
     size_list = [torch.tensor([0], device=device) for _ in range(world_size)]

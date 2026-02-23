@@ -1,15 +1,9 @@
 import copy
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
-from torch import nn, Tensor
-from typing import List, Optional, Tuple
-from collections import OrderedDict
-import copy
-from add_on.attention import *
-import pocket
 
 
 class TransformerEncoder(nn.Module):
@@ -126,18 +120,9 @@ class TransformerEncoderLayer(nn.Module):
         #   35x35, N, 2048 -> 
         return self.forward_post(src, src_mask, src_key_padding_mask, pos)
 
+from gfin_module.activations import get_activation_fn as _get_activation_fn
+
+
 def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
-    
-def _get_activation_fn(activation):
-    """Return an activation function given a string"""
-    if activation == "relu":
-        return F.relu
-    if activation == "gelu":
-        return F.gelu
-    if activation == "glu":
-        return F.glu
-    # if activation=="prelu":
-    #     return F.prelu
-    raise RuntimeError(F"activation should be relu/gelu, not {activation}.")
 

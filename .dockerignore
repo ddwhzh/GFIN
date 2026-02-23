@@ -1,0 +1,40 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.eggs
+dist
+build
+
+# Logs and outputs
+logs/
+*.log
+outputs_img/
+
+# Large dataset directories (mount as volumes instead)
+hicodet/hico_20160224_det/
+vcoco/mscoco2014/
+vcoco/v-coco/
+checkpoints/
+
+# TDAD tooling
+.tdad/
+
+# Environment
+.env
+
+# OS files
+.DS_Store
+Thumbs.db

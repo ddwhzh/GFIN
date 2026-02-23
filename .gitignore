@@ -32,3 +32,5 @@ experiments/hico/train/logs/pid/save_pid.txt
 __pycache__/interaction_head.cpython-38.pyc
 last_video.mp4
 assets/test.mp4
+.tdad/
+._

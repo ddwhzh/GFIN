@@ -1,13 +1,8 @@
-import copy
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
-from torch import nn, Tensor
-from typing import List, Optional, Tuple
-from collections import OrderedDict
-import copy
 
 
 class NLBlockND(nn.Module):

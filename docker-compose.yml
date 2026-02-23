@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  gfin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gfin:latest
+    container_name: gfin
+    runtime: nvidia
+    shm_size: "16g"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - OMP_NUM_THREADS=1
+      - VCOCO_VSRL_ANNOT=${VCOCO_VSRL_ANNOT:-vcoco/v-coco/data/vcoco/vcoco_test.json}
+      - VCOCO_COCO_ANNOT=${VCOCO_COCO_ANNOT:-vcoco/v-coco/data/instances_vcoco_all_2014.json}
+      - VCOCO_SPLIT_FILE=${VCOCO_SPLIT_FILE:-vcoco/v-coco/data/splits/vcoco_test.ids}
+    volumes:
+      - ./hicodet/hico_20160224_det:/workspace/gfin/hicodet/hico_20160224_det:ro
+      - ./vcoco/mscoco2014:/workspace/gfin/vcoco/mscoco2014:ro
+      - ./vcoco/v-coco:/workspace/gfin/vcoco/v-coco:ro
+      - ./checkpoints:/workspace/gfin/checkpoints:ro
+      - ./logs:/workspace/gfin/logs
+      - ./outputs_img:/workspace/gfin/outputs_img
+    working_dir: /workspace/gfin
+    entrypoint: ["python"]
+    command: ["main.py", "--help"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  tensorboard:
+    image: tensorflow/tensorflow:latest
+    container_name: gfin-tensorboard
+    ports:
+      - "6006:6006"
+    volumes:
+      - ./logs:/logs:ro
+    command: ["tensorboard", "--logdir=/logs", "--host=0.0.0.0", "--port=6006"]

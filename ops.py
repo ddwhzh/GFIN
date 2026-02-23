@@ -7,6 +7,7 @@ The Australian National University
 Australian Centre for Robotic Vision
 """
 
+import os
 import math
 import torch
 from torch.autograd import grad
@@ -19,7 +20,7 @@ from typing import Dict, List, Optional, Tuple
 from scipy.optimize import linear_sum_assignment
 
 import sys
-sys.path.append('detr')
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'detr'))
 from detr.util.box_ops import generalized_box_iou
 
 class BalancedBoxSampler:
@@ -443,7 +444,7 @@ def compute_spatial_encodings(
         )
     return torch.cat(features)
 
-def binary_focal_loss_with_logits(
+def binary_focal_loss_with_logits_original(
     x: Tensor, y: Tensor,
     alpha: float = 0.5,
     gamma: float = 2.0,
@@ -451,30 +452,10 @@ def binary_focal_loss_with_logits(
     eps: float = 1e-6
 ) -> Tensor:
     """
-    Focal loss by Lin et al.
+    Original Focal loss by Lin et al. (unused, kept for reference).
     https://arxiv.org/pdf/1708.02002.pdf
 
     L = - |1-y-alpha| * |y-x|^{gamma} * log(|1-y-x|)
-
-    Parameters:
-    -----------
-    x: Tensor[N, K]
-        Post-normalisation scores
-    y: Tensor[N, K]
-        Binary labels
-    alpha: float
-        Hyper-parameter that balances between postive and negative examples
-    gamma: float
-        Hyper-paramter suppresses well-classified examples
-    reduction: str
-        Reduction methods
-    eps: float
-        A small constant to avoid NaN values from 'PowBackward'
-
-    Returns:
-    --------
-    loss: Tensor
-        Computed loss tensor
     """
     loss = (1 - y - alpha).abs() * ((y-torch.sigmoid(x)).abs() + eps) ** gamma * \
         torch.nn.functional.binary_cross_entropy_with_logits(

@@ -17,9 +17,9 @@ import numpy as np
 
 
 import utils
-from utils import  DataFactory
+from utils import DataFactory
 from gfin import build_detector
-from add_on.infer_util import *
+from add_on.infer_util import image_run, video_run
 warnings.filterwarnings("ignore")
 
 def get_args_parser():
